@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SHIRT//AI — Design Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0a0a;--surface:#111;--border:#222;--accent:#ff4d00;--accent2:#ffd000;
+    --text:#e8e2d9;--muted:#555;--success:#00e676;--warn:#ffd000;--error:#ff1744;
+    --mono:'JetBrains Mono',monospace;--display:'Bebas Neue',sans-serif;--sans:'Syne',sans-serif}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;z-index:0;opacity:.4;pointer-events:none;
+    background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E") 0 0/256px}
+
+  .layout{position:relative;z-index:1;display:grid;grid-template-columns:400px 1fr;min-height:100vh}
+
+  /* SIDEBAR */
+  .sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+  .logo-bar{padding:24px 28px 20px;border-bottom:1px solid var(--border)}
+  .wordmark{font-family:var(--display);font-size:42px;letter-spacing:2px;line-height:1}
+  .wordmark span{color:var(--accent)}
+  .tagline{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:3px;margin-top:4px}
+  .form-section{padding:20px 28px;border-bottom:1px solid var(--border)}
+  .section-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:3px;color:var(--accent);
+    margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .section-label::after{content:'';flex:1;height:1px;background:var(--border)}
+  label{display:block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:5px}
+  input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;
+    color:var(--text);font-family:var(--mono);font-size:13px;padding:9px 12px;margin-bottom:14px;outline:none;transition:border-color .2s}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,77,0,.12)}
+  input::placeholder{color:#333}
+  .niche-input{font-family:var(--display)!important;font-size:26px!important;letter-spacing:1px!important;
+    padding:12px 14px!important;border:2px solid rgba(255,77,0,.3)!important;background:rgba(255,77,0,.04)!important;margin-bottom:0!important}
+  .niche-input:focus{border-color:var(--accent)!important}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .row2 input,.row2 select{margin-bottom:0}
+  .api-toggle{background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:9px;text-transform:uppercase;
+    letter-spacing:3px;color:var(--accent);display:flex;align-items:center;gap:8px;width:100%;padding:0;margin-bottom:14px}
+  .api-toggle::after{content:'';flex:1;height:1px;background:var(--border)}
+  .api-fields{overflow:hidden;transition:max-height .3s;max-height:600px}
+  .api-fields.collapsed{max-height:0}
+  .key-row{position:relative}
+  .key-row input{padding-right:36px;font-size:11px}
+  .eye{position:absolute;right:10px;top:9px;background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px}
+  .eye:hover{color:var(--text)}
+
+  /* Inspiration upload */
+  .insp-drop{border:2px dashed var(--border);border-radius:6px;padding:16px;text-align:center;
+    cursor:pointer;transition:border-color .2s,background .2s;margin-bottom:14px;position:relative}
+  .insp-drop:hover,.insp-drop.drag{border-color:var(--accent);background:rgba(255,77,0,.04)}
+  .insp-drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+  .insp-drop .icon{font-size:24px;margin-bottom:6px}
+  .insp-drop .hint{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px}
+  .insp-preview{width:100%;border-radius:4px;border:1px solid var(--border);margin-bottom:6px;display:none}
+  .insp-clear{background:none;border:none;color:var(--error);font-family:var(--mono);font-size:10px;
+    cursor:pointer;display:none;margin-bottom:14px}
+
+  /* Toggle switch */
+  .toggle-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .toggle-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
+  .switch{position:relative;width:36px;height:20px;flex-shrink:0}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;inset:0;background:#333;border-radius:20px;cursor:pointer;transition:.3s}
+  .slider:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+  input:checked+.slider{background:var(--accent)}
+  input:checked+.slider:before{transform:translateX(16px)}
+
+  .go-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:4px;
+    font-family:var(--display);font-size:30px;letter-spacing:4px;padding:14px;cursor:pointer;
+    transition:background .15s,transform .1s;position:relative;overflow:hidden}
+  .go-btn::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,.1),transparent 60%)}
+  .go-btn:hover{background:#ff6520}
+  .go-btn:active{transform:scale(.98)}
+  .go-btn:disabled{background:#333;color:#555;cursor:not-allowed;transform:none}
+  .go-btn .spinner{display:none}
+  .go-btn.loading .label{display:none}
+  .go-btn.loading .spinner{display:inline}
+  .stop-btn{width:100%;background:transparent;color:var(--error);border:1px solid var(--error);border-radius:4px;
+    font-family:var(--mono);font-size:11px;letter-spacing:3px;text-transform:uppercase;padding:9px;
+    cursor:pointer;margin-top:8px;transition:background .15s,color .15s;display:none}
+  .stop-btn:hover{background:var(--error);color:#fff}
+  .status-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;
+    text-transform:uppercase;letter-spacing:2px;padding:4px 10px;border-radius:20px;
+    background:rgba(255,255,255,.03);color:var(--muted);border:1px solid var(--border);margin-top:10px;transition:all .3s}
+  .status-badge.running{background:rgba(255,208,0,.1);color:var(--warn);border-color:rgba(255,208,0,.3)}
+  .status-badge.done{background:rgba(0,230,118,.1);color:var(--success);border-color:rgba(0,230,118,.3)}
+  .status-badge.reviewing{background:rgba(255,77,0,.1);color:var(--accent);border-color:rgba(255,77,0,.3)}
+  .status-badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .status-badge.running .dot,.status-badge.reviewing .dot{animation:blink 1s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+  /* MAIN */
+  .main{display:flex;flex-direction:column;overflow:hidden}
+  .main-header{padding:18px 32px;border-bottom:1px solid var(--border)}
+  .main-header h2{font-family:var(--display);font-size:20px;letter-spacing:2px;color:var(--muted)}
+  .tabs{display:flex;border-bottom:1px solid var(--border);padding:0 32px}
+  .tab{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:2px;padding:13px 18px;
+    cursor:pointer;border-bottom:2px solid transparent;color:var(--muted);background:none;
+    border-top:none;border-left:none;border-right:none;transition:color .2s,border-color .2s}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tab:hover:not(.active){color:var(--text)}
+  .tab-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+    border-radius:50%;background:var(--accent);color:#fff;font-size:9px;margin-left:6px}
+  .panel{flex:1;overflow-y:auto;padding:24px 32px;display:none}
+  .panel.active{display:block}
+
+  /* TERMINAL */
+  .terminal{background:#050505;border:1px solid var(--border);border-radius:6px;padding:14px 18px;
+    font-family:var(--mono);font-size:12px;line-height:1.7;min-height:280px;max-height:58vh;
+    overflow-y:auto;scroll-behavior:smooth}
+  .log-line{display:flex;gap:12px}
+  .log-time{color:var(--muted);flex-shrink:0}
+  .log-msg.step{color:var(--accent2);font-weight:700}
+  .log-msg.log{color:var(--text)}
+  .log-msg.warn{color:var(--warn)}
+  .log-msg.error{color:var(--error)}
+  .log-msg.result{color:var(--success)}
+  .log-msg.review{color:var(--accent);font-weight:700;font-size:13px}
+  .cursor{display:inline-block;width:8px;height:14px;background:var(--accent);vertical-align:middle;animation:blink .8s step-end infinite}
+
+  /* GALLERY */
+  .results-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+  .design-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;
+    transition:border-color .2s,transform .2s;animation:slideUp .4s ease both}
+  @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  .design-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .card-img{width:100%;aspect-ratio:1;display:flex;align-items:center;justify-content:center;overflow:hidden;
+    background-image:linear-gradient(45deg,#1a1a1a 25%,transparent 25%),linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#1a1a1a 75%),linear-gradient(-45deg,transparent 75%,#1a1a1a 75%);
+    background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+  .card-img img{width:100%;height:100%;object-fit:contain;padding:10px}
+  .card-body{padding:12px 14px}
+  .card-slogan{font-family:var(--display);font-size:18px;letter-spacing:1px;line-height:1.2;margin-bottom:6px}
+  .card-title{font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.4}
+  .card-tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+  .tag{font-family:var(--mono);font-size:9px;background:rgba(255,77,0,.1);color:var(--accent);
+    border:1px solid rgba(255,77,0,.2);padding:2px 7px;border-radius:20px}
+  .card-status{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:2px;padding:3px 7px;border-radius:4px}
+  .card-status.uploaded{background:rgba(0,230,118,.1);color:var(--success)}
+  .card-status.dryrun{background:rgba(255,208,0,.1);color:var(--warn)}
+  .dl-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);
+    color:var(--muted);font-family:var(--mono);font-size:10px;padding:4px 9px;border-radius:4px;
+    cursor:pointer;transition:all .2s;margin-top:7px;text-decoration:none}
+  .dl-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .empty-state{text-align:center;padding:80px 20px;font-family:var(--mono);color:var(--muted);font-size:12px;line-height:2}
+  .empty-state .big{font-family:var(--display);font-size:60px;color:#1a1a1a;line-height:1}
+
+  /* REVIEW MODAL */
+  .modal-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.88);backdrop-filter:blur(6px);
+    display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s}
+  .modal-overlay.open{opacity:1;pointer-events:all}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:900px;
+    max-height:92vh;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;animation:modalIn .25s ease}
+  @keyframes modalIn{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+  .modal-img-side{background-image:linear-gradient(45deg,#1a1a1a 25%,transparent 25%),linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),
+      linear-gradient(45deg,transparent 75%,#1a1a1a 75%),linear-gradient(-45deg,transparent 75%,#1a1a1a 75%);
+    background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0;
+    display:flex;align-items:center;justify-content:center;padding:28px;
+    border-right:1px solid var(--border);border-radius:12px 0 0 12px;min-height:420px;position:relative}
+  .modal-img-side img{max-width:100%;max-height:380px;object-fit:contain}
+  .modal-loading{font-family:var(--mono);font-size:12px;color:var(--muted);animation:blink 1s infinite}
+  .modal-form-side{padding:28px;display:flex;flex-direction:column}
+  .modal-badge{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:3px;color:var(--accent);margin-bottom:8px}
+  .modal-slogan{font-family:var(--display);font-size:26px;letter-spacing:1px;line-height:1.1;margin-bottom:6px}
+  .modal-hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:20px;line-height:1.6}
+  .modal-field{margin-bottom:0}
+  .modal-field label{margin-bottom:5px}
+  .modal-field input,.modal-field textarea{margin-bottom:12px;font-size:12px}
+  .modal-field textarea{resize:vertical;min-height:64px}
+  .tags-editor{display:flex;flex-wrap:wrap;gap:5px;background:var(--bg);border:1px solid var(--border);
+    border-radius:4px;padding:7px;min-height:40px;margin-bottom:8px}
+  .tag-chip{display:inline-flex;align-items:center;gap:4px;background:rgba(255,77,0,.12);color:var(--accent);
+    border:1px solid rgba(255,77,0,.25);border-radius:20px;font-family:var(--mono);font-size:9px;padding:2px 8px}
+  .rm-tag{cursor:pointer;font-size:11px;color:var(--muted);background:none;border:none;padding:0}
+  .rm-tag:hover{color:var(--error)}
+  .tag-add-row{display:flex;gap:6px;margin-bottom:14px}
+  .tag-add-row input{margin-bottom:0;flex:1;font-size:11px;padding:6px 10px}
+  .add-tag-btn{background:rgba(255,77,0,.15);border:1px solid rgba(255,77,0,.3);color:var(--accent);
+    border-radius:4px;font-family:var(--mono);font-size:10px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .add-tag-btn:hover{background:rgba(255,77,0,.28)}
+
+  /* Feedback/regen row */
+  .regen-row{display:flex;gap:6px;margin-bottom:14px}
+  .regen-row input{margin-bottom:0;flex:1;font-size:11px;padding:6px 10px}
+  .regen-btn{background:rgba(255,208,0,.12);border:1px solid rgba(255,208,0,.3);color:var(--accent2);
+    border-radius:4px;font-family:var(--mono);font-size:10px;padding:6px 10px;cursor:pointer;white-space:nowrap}
+  .regen-btn:hover{background:rgba(255,208,0,.25)}
+
+  .modal-actions{display:flex;gap:8px;margin-top:auto;padding-top:8px}
+  .btn-approve{flex:1;background:var(--success);color:#000;border:none;border-radius:6px;
+    font-family:var(--display);font-size:20px;letter-spacing:2px;padding:12px;cursor:pointer;transition:opacity .15s}
+  .btn-approve:hover{opacity:.85}
+  .btn-skip{background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:6px;
+    font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;
+    padding:12px 14px;cursor:pointer;transition:all .2s;white-space:nowrap}
+  .btn-skip:hover{border-color:var(--error);color:var(--error)}
+
+  @media(max-width:720px){
+    .modal{grid-template-columns:1fr}
+    .modal-img-side{border-right:none;border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;min-height:200px}
+    .layout{grid-template-columns:1fr}
+    .sidebar{border-right:none;border-bottom:1px solid var(--border)}
+  }
+</style>
+</head>
+<body>
+
+<!-- REVIEW MODAL -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-img-side" id="modal-img-side">
+      <div class="modal-loading" id="modal-loading">⟳ Loading design…</div>
+      <img id="modal-img" src="" alt="" style="display:none">
+    </div>
+    <div class="modal-form-side">
+      <div class="modal-badge" id="modal-badge">Design 1 — Review</div>
+      <div class="modal-slogan" id="modal-slogan"></div>
+      <div class="modal-hint">✏️ Edit freely. Changes will be used for the upload.<br>Or request a regeneration with feedback below.</div>
+
+      <div class="modal-field">
+        <label>Title <span style="color:var(--muted);font-size:9px">(max 60 chars)</span></label>
+        <input id="modal-title" type="text" maxlength="60">
+      </div>
+      <div class="modal-field">
+        <label>Description</label>
+        <textarea id="modal-desc" rows="3"></textarea>
+      </div>
+      <div class="modal-field">
+        <label>Tags</label>
+        <div class="tags-editor" id="tags-editor"></div>
+        <div class="tag-add-row">
+          <input id="tag-input" type="text" placeholder="Add tag…" maxlength="30">
+          <button class="add-tag-btn" onclick="addTag()">+ Add</button>
+        </div>
+      </div>
+
+      <label>Regenerate with feedback</label>
+      <div class="regen-row">
+        <input id="feedback-input" type="text" placeholder="e.g. make it more minimalist, darker colors…">
+        <button class="regen-btn" onclick="submitReview('regenerate')">↺ Regen</button>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-approve" onclick="submitReview('approve')">✓ APPROVE</button>
+        <button class="btn-skip" onclick="submitReview('skip')">SKIP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+  <aside class="sidebar">
+    <div class="logo-bar">
+      <div class="wordmark">SHIRT<span>//</span>AI</div>
+      <div class="tagline">Automated Design Agent for Spreadshirt</div>
+    </div>
+
+    <!-- Niche -->
+    <div class="form-section">
+      <div class="section-label">Target Niche</div>
+      <input id="niche" class="niche-input" type="text" placeholder="e.g. fishing humor" autocomplete="off" spellcheck="false">
+    </div>
+
+    <!-- Inspiration -->
+    <div class="form-section">
+      <div class="section-label">Inspiration Design (optional)</div>
+      <img id="insp-preview" class="insp-preview" src="" alt="Inspiration">
+      <button class="insp-clear" id="insp-clear" onclick="clearInspiration()">✕ Remove inspiration image</button>
+      <div class="insp-drop" id="insp-drop">
+        <input type="file" id="insp-file" accept="image/*" onchange="handleInspirationUpload(event)">
+        <div class="icon">🖼</div>
+        <div class="hint">Drop or click to upload a reference design</div>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="form-section">
+      <div class="section-label">Settings</div>
+      <div class="row2">
+        <div><label>Designs</label><input id="count" type="number" value="5" min="1" max="20"></div>
+        <div>
+          <label>Art Style</label>
+          <select id="style">
+            <option value="bold vector art, clean lines, high contrast">Vector Bold</option>
+            <option value="vintage retro illustration, distressed texture">Retro Vintage</option>
+            <option value="minimalist geometric, flat design">Minimalist</option>
+            <option value="hand-drawn cartoon, fun and playful">Cartoon</option>
+            <option value="grunge typography, raw and edgy">Grunge</option>
+          </select>
+        </div>
+      </div>
+      <div class="row2" style="margin-bottom:14px">
+        <div>
+          <label>Design Mode</label>
+          <select id="design-mode">
+            <option value="svg">SVG (recommended)</option>
+            <option value="dalle">DALL·E 3 (illustrated)</option>
+          </select>
+        </div>
+        <div></div>
+      </div>
+      <div class="toggle-row">
+        <label class="switch"><input type="checkbox" id="review-toggle" checked><span class="slider"></span></label>
+        <span class="toggle-label">Review before upload</span>
+      </div>
+    </div>
+
+    <!-- API Keys -->
+    <div class="form-section">
+      <button class="api-toggle" onclick="toggleApi()">API Keys <span id="api-chev">▾</span></button>
+      <div class="api-fields" id="api-fields">
+        <label>Anthropic API Key *</label>
+        <div class="key-row"><input id="ant-key" type="password" placeholder="sk-ant-…" autocomplete="off"><button class="eye" onclick="toggleVis('ant-key',this)">👁</button></div>
+        <label>OpenAI Key (DALL·E mode only)</label>
+        <div class="key-row"><input id="oai-key" type="password" placeholder="sk-proj-…" autocomplete="off"><button class="eye" onclick="toggleVis('oai-key',this)">👁</button></div>
+        <label>Spreadshirt API Key</label>
+        <div class="key-row"><input id="ss-key" type="password" placeholder="leave blank = dry run" autocomplete="off"><button class="eye" onclick="toggleVis('ss-key',this)">👁</button></div>
+        <label>Spreadshirt User ID</label>
+        <input id="ss-user" type="text" placeholder="e.g. 115239581" autocomplete="off">
+      </div>
+    </div>
+
+    <!-- Launch -->
+    <div class="form-section">
+      <button class="go-btn" id="go-btn" onclick="startAgent()">
+        <span class="label">GENERATE &amp; UPLOAD</span>
+        <span class="spinner">⟳ RUNNING…</span>
+      </button>
+      <button class="stop-btn" id="stop-btn" onclick="stopAgent()">⏹ STOP AFTER THIS DESIGN</button>
+      <div class="status-badge" id="status-badge">
+        <span class="dot"></span><span id="status-text">Idle — ready</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-header"><h2>DESIGN PIPELINE</h2></div>
+    <div class="tabs">
+      <button class="tab active" onclick="showTab('log',this)">Live Log</button>
+      <button class="tab" onclick="showTab('results',this)">Results <span class="tab-badge" id="result-count">0</span></button>
+    </div>
+    <div class="panel active" id="panel-log">
+      <div class="terminal" id="terminal">
+        <div class="log-line"><span class="log-time">00:00</span><span class="log-msg log">System ready. Enter a niche and hit GENERATE.</span></div>
+        <span class="cursor"></span>
+      </div>
+    </div>
+    <div class="panel" id="panel-results">
+      <div class="empty-state" id="empty-results"><div class="big">0</div>designs yet.<br>Enter a niche and launch.</div>
+      <div class="results-grid" id="results-grid"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let startTime=null, resultCount=0, currentJobId=null, apiOpen=true;
+let currentTags=[], inspirationB64=null;
+
+// ── Init: load .env defaults ───────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async ()=>{
+  try{
+    const r=await fetch('/defaults');
+    const d=await r.json();
+    if(d.anthropic_key) document.getElementById('ant-key').value=d.anthropic_key;
+    if(d.openai_key)    document.getElementById('oai-key').value=d.openai_key;
+    if(d.ss_key)        document.getElementById('ss-key').value=d.ss_key;
+    if(d.ss_user)       document.getElementById('ss-user').value=d.ss_user;
+  }catch(e){}
+  document.getElementById('niche').addEventListener('keydown',e=>{if(e.key==='Enter')startAgent()});
+  document.getElementById('tag-input').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addTag()}});
+});
+
+// ── Inspiration image ──────────────────────────────────────────────────────
+function handleInspirationUpload(e){
+  const file=e.target.files[0]; if(!file)return;
+  const reader=new FileReader();
+  reader.onload=(ev)=>{
+    inspirationB64=ev.target.result.split(',')[1];
+    const prev=document.getElementById('insp-preview');
+    prev.src=ev.target.result; prev.style.display='block';
+    document.getElementById('insp-clear').style.display='block';
+    document.getElementById('insp-drop').style.display='none';
+  };
+  reader.readAsDataURL(file);
+}
+function clearInspiration(){
+  inspirationB64=null;
+  document.getElementById('insp-preview').style.display='none';
+  document.getElementById('insp-clear').style.display='none';
+  document.getElementById('insp-drop').style.display='block';
+  document.getElementById('insp-file').value='';
+}
+// drag visual
+const drop=document.getElementById('insp-drop');
+if(drop){
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('drag')});
+  drop.addEventListener('dragleave',()=>drop.classList.remove('drag'));
+  drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');
+    if(e.dataTransfer.files[0]){document.getElementById('insp-file').files=e.dataTransfer.files;handleInspirationUpload({target:{files:e.dataTransfer.files}})}});
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function toggleApi(){apiOpen=!apiOpen;document.getElementById('api-fields').classList.toggle('collapsed',!apiOpen);document.getElementById('api-chev').textContent=apiOpen?'▾':'▸'}
+function toggleVis(id,btn){const el=document.getElementById(id);el.type=el.type==='password'?'text':'password';btn.textContent=el.type==='text'?'🙈':'👁'}
+function showTab(n,btn){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));btn.classList.add('active');document.getElementById('panel-'+n).classList.add('active')}
+function ts(){if(!startTime)return'00:00';const s=Math.floor((Date.now()-startTime)/1000);return`${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function log(type,msg){const t=document.getElementById('terminal'),c=t.querySelector('.cursor'),l=document.createElement('div');l.className='log-line';l.innerHTML=`<span class="log-time">${ts()}</span><span class="log-msg ${type}">${esc(msg)}</span>`;t.insertBefore(l,c);t.scrollTop=t.scrollHeight}
+function setStatus(cls,txt){const b=document.getElementById('status-badge');b.className='status-badge '+cls;document.getElementById('status-text').textContent=txt}
+function resetBtn(){const b=document.getElementById('go-btn');b.disabled=false;b.classList.remove('loading');document.getElementById('stop-btn').style.display='none'}
+
+// ── Tag editor ─────────────────────────────────────────────────────────────
+function renderTags(){document.getElementById('tags-editor').innerHTML=currentTags.map((t,i)=>`<span class="tag-chip">${esc(t)}<button class="rm-tag" onclick="removeTag(${i})">×</button></span>`).join('')}
+function removeTag(i){currentTags.splice(i,1);renderTags()}
+function addTag(){const inp=document.getElementById('tag-input'),v=inp.value.trim().toLowerCase().replace(/\s+/g,'-');if(v&&!currentTags.includes(v)&&currentTags.length<20){currentTags.push(v);renderTags()}inp.value='';inp.focus()}
+
+// ── Review modal ───────────────────────────────────────────────────────────
+async function openReviewModal(index){
+  setStatus('reviewing','👁 Review required…');
+  // Show modal with loading state first
+  document.getElementById('modal-loading').style.display='block';
+  document.getElementById('modal-img').style.display='none';
+  document.getElementById('modal-overlay').classList.add('open');
+  // Fetch the actual design data (avoids SSE payload limits)
+  try{
+    const r=await fetch(`/review_data/${currentJobId}`);
+    const d=await r.json();
+    if(!d.ok)return;
+    const mimePrefix=d.file_type==='svg'?'image/svg+xml':'image/png';
+    document.getElementById('modal-img').src=`data:${mimePrefix};base64,${d.image_b64}`;
+    document.getElementById('modal-img').style.display='block';
+    document.getElementById('modal-loading').style.display='none';
+    document.getElementById('modal-badge').textContent=`Design ${d.index} — Review`;
+    document.getElementById('modal-slogan').textContent=d.slogan;
+    document.getElementById('modal-title').value=d.metadata.title||'';
+    document.getElementById('modal-desc').value=d.metadata.description||'';
+    document.getElementById('feedback-input').value='';
+    currentTags=[...(d.metadata.tags||[])];
+    renderTags();
+  }catch(e){log('error','Failed to load review data: '+e.message);closeModal()}
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('open');setStatus('running','Running…')}
+async function submitReview(action){
+  const metadata={title:document.getElementById('modal-title').value.trim(),description:document.getElementById('modal-desc').value.trim(),tags:currentTags};
+  const feedback=document.getElementById('feedback-input').value.trim();
+  closeModal();
+  await fetch(`/review/${currentJobId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,metadata,feedback,regenerate:action==='regenerate'})});
+  if(action==='approve')log('result',`✅ Approved: "${metadata.title}"`);
+  else if(action==='regenerate')log('warn',`↺ Regenerating with feedback: "${feedback}"`);
+  else log('warn','⏭  Skipped design');
+}
+
+// ── Result card ────────────────────────────────────────────────────────────
+function addResultCard(r){
+  resultCount++;document.getElementById('result-count').textContent=resultCount;
+  document.getElementById('empty-results').style.display='none';
+  const g=document.getElementById('results-grid'),card=document.createElement('div');
+  card.className='design-card';
+  const tags=(r.tags||[]).slice(0,5).map(t=>`<span class="tag">${esc(t)}</span>`).join('');
+  const status=r.uploaded?`<span class="card-status uploaded">✓ Uploaded</span>`:`<span class="card-status dryrun">⚡ Dry Run</span>`;
+  const mime=r.file_type==='svg'?'image/svg+xml':'image/png';
+  card.innerHTML=`<div class="card-img">${r.image_b64?`<img src="data:${mime};base64,${r.image_b64}" alt="">`:''}</div>
+  <div class="card-body">
+    <div class="card-slogan">${esc(r.slogan)}</div>
+    <div class="card-title">${esc(r.title)}</div>
+    <div class="card-tags">${tags}</div>${status}
+    ${r.image_b64?`<br><a class="dl-btn" href="data:${mime};base64,${r.image_b64}" download="${esc(r.slogan.replace(/\s+/g,'-'))}.${r.file_type||'png'}">↓ Download ${(r.file_type||'png').toUpperCase()}</a>`:''}
+  </div>`;
+  g.appendChild(card);
+}
+
+// ── Launch ─────────────────────────────────────────────────────────────────
+async function startAgent(){
+  const niche=document.getElementById('niche').value.trim();
+  const antKey=document.getElementById('ant-key').value.trim();
+  if(!niche)return alert('Please enter a niche.');
+  if(!antKey)return alert('Anthropic API key is required.');
+
+  startTime=Date.now();resultCount=0;
+  document.getElementById('result-count').textContent='0';
+  document.getElementById('results-grid').innerHTML='';
+  document.getElementById('empty-results').style.display='block';
+  document.getElementById('terminal').innerHTML='<span class="cursor"></span>';
+
+  const btn=document.getElementById('go-btn');btn.disabled=true;btn.classList.add('loading');
+  document.getElementById('stop-btn').style.display='block';
+  document.getElementById('stop-btn').disabled=false;
+  document.getElementById('stop-btn').textContent='⏹ STOP AFTER THIS DESIGN';
+  setStatus('running',`Running: ${niche}`);
+
+  let jobId;
+  try{
+    const res=await fetch('/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      niche,count:document.getElementById('count').value,
+      style:document.getElementById('style').value,
+      design_mode:document.getElementById('design-mode').value,
+      review:document.getElementById('review-toggle').checked,
+      inspiration_b64:inspirationB64||null,
+      anthropic_key:antKey,
+      openai_key:document.getElementById('oai-key').value.trim(),
+      spreadshirt_key:document.getElementById('ss-key').value.trim(),
+      spreadshirt_user:document.getElementById('ss-user').value.trim(),
+    })});
+    const d=await res.json();jobId=d.job_id;currentJobId=jobId;
+    log('log',`Job started [${jobId}]`);
+  }catch(e){log('error','Failed to reach backend: '+e.message);resetBtn();return}
+
+  const source=new EventSource(`/stream/${jobId}`);
+  source.onmessage=(e)=>{
+    const evt=JSON.parse(e.data);
+    if(evt.type==='done'){
+      source.close();
+      if(evt.results)evt.results.forEach(r=>addResultCard(r));
+      setStatus('done',`Done! ${resultCount} designs`);resetBtn();
+    }else if(evt.type==='review'){
+      log('review',evt.msg);
+      openReviewModal(evt.index);
+    }else if(evt.type==='result'){
+      log('result',evt.msg);
+    }else{
+      log(evt.type||'log',evt.msg);
+    }
+  };
+  source.onerror=()=>{source.close();resetBtn()};
+}
+
+async function stopAgent(){
+  if(!currentJobId)return;
+  const b=document.getElementById('stop-btn');b.disabled=true;b.textContent='⏳ Stopping…';
+  await fetch(`/stop/${currentJobId}`,{method:'POST'});
+}
+</script>
+</body>
+</html>
