@@ -37,6 +37,8 @@ CORS(app)
 # ─── Job store ────────────────────────────────────────────────────────────────
 jobs = {}
 SPREADSHIRT_BASE = "https://api.spreadshirt.net/api/v1"
+OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "outputs")
+os.makedirs(OUTPUTS_DIR, exist_ok=True)
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
@@ -267,6 +269,15 @@ def run_agent(job_id, data):
             else:
                 emit(job_id, "log", "  💾 Dry run — skipping upload")
 
+            # Save design to disk
+            safe_slogan = re.sub(r'[^a-zA-Z0-9]+', '_', concept["slogan"])[:40]
+            filename = f"{job_id}_{i:02d}_{safe_slogan}.{file_type}"
+            filepath = os.path.join(OUTPUTS_DIR, filename)
+            with open(filepath, "wb") as f:
+                f.write(design_bytes)
+            result["saved_path"] = filepath
+            emit(job_id, "log", f"  💾 Saved: outputs/{filename}")
+
             jobs[job_id]["results"].append(result)
             emit(job_id, "result", f"Design {i} done", index=len(jobs[job_id]["results"])-1)
 
@@ -321,23 +332,40 @@ def generate_svg(ant, concept, style, inspiration_b64=None):
     if inspiration_b64:
         inspiration_note = "Match the aesthetic style of the provided inspiration image."
 
-    prompt = f"""You are an expert SVG designer for print-on-demand t-shirts.
+    prompt = f"""You are an expert SVG designer for screen-printed t-shirts.
 Create a complete, valid SVG for this design:
 Slogan: "{concept['slogan']}"
 Style: {concept['visual_style']}
 Art direction: {style}
 {inspiration_note}
 
-STRICT REQUIREMENTS:
-- viewBox="0 0 1000 1000", width="1000" height="1000"
-- NO background rectangle — transparent background
-- Solid colors only (2-4 colors max), no complex gradients
-- Bold, simple shapes — screen-printing friendly
-- Text MUST be spelled exactly as the slogan above
-- Use font-family="Arial Black, Impact, sans-serif" or embed simple paths
-- All elements centered within the 1000x1000 canvas
-- Simple is better — geometric shapes + typography always work
-- Design should look great on BOTH light and dark shirts (use outlines/strokes)
+STRICT REQUIREMENTS — follow every rule exactly:
+
+CANVAS & LAYOUT:
+- viewBox="0 0 1000 1000" width="1000" height="1000"
+- NO background rectangle — transparent background only
+- Keep ALL elements strictly within x=80 to x=920, y=80 to y=920 (80px safe margin)
+- Center the entire composition horizontally and vertically
+
+COLORS — MAXIMUM 3 COLORS TOTAL:
+- Choose colors that create strong contrast on BOTH white and black shirts
+- Every filled shape MUST have a contrasting stroke (min stroke-width="6") so it reads on any shirt color
+- Good combos: black + white + one accent / navy + gold + white / red + black + white
+- NO gradients, NO opacity tricks, NO semi-transparent layers
+
+SHAPES & ILLUSTRATION:
+- Use BOLD, SIMPLE geometric shapes only — thick strokes, chunky forms
+- Aim for 5-15 distinct elements total — less is more
+- NO tiny details, NO fine textures, NO hatching
+- Illustration must be instantly readable at thumbnail size
+- NEVER use <textPath> or arc/curved text of any kind
+
+TYPOGRAPHY:
+- font-family="Arial Black, Impact, sans-serif" font-weight="900"
+- Text MUST be spelled EXACTLY: "{concept['slogan']}"
+- Use straight horizontal <text> elements only — no arcs, no transforms on text
+- Minimum font-size 70 for main slogan, bold stroke outline for legibility
+- Text stroke: stroke="#000000" or contrasting dark color, stroke-width="8", paint-order="stroke fill"
 
 Return ONLY the raw SVG code starting with <svg, nothing else."""
 
@@ -361,6 +389,15 @@ Return ONLY the raw SVG code starting with <svg, nothing else."""
     return text.strip()
 
 
+def minify_svg(svg_code):
+    """Strip whitespace and comments to reduce SVG file size."""
+    import re
+    svg_code = re.sub(r'<!--.*?-->', '', svg_code, flags=re.DOTALL)
+    svg_code = re.sub(r'\n\s*', ' ', svg_code)
+    svg_code = re.sub(r'\s{2,}', ' ', svg_code)
+    return svg_code.strip()
+
+
 def svg_to_png(svg_code, size=1000):
     """Convert SVG bytes to PNG. Returns (bytes, 'png') or (svg_str, 'svg') fallback."""
     if CAIROSVG_AVAILABLE:
@@ -370,8 +407,8 @@ def svg_to_png(svg_code, size=1000):
             return png_bytes, "png"
         except Exception:
             pass
-    # Fallback: return SVG as-is (Spreadshirt accepts SVG)
-    return svg_code.encode("utf-8"), "svg"
+    # Fallback: return minified SVG (Spreadshirt accepts SVG)
+    return minify_svg(svg_code).encode("utf-8"), "svg"
 
 
 def generate_dalle_image(oai, concept, style):
