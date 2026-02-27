@@ -28,7 +28,7 @@ except ImportError:
 try:
     import cairosvg
     CAIROSVG_AVAILABLE = True
-except ImportError:
+except (ImportError, OSError):
     CAIROSVG_AVAILABLE = False
 
 app = Flask(__name__)
@@ -497,11 +497,11 @@ def upload_to_spreadshirt(design_bytes, file_type, metadata, ss_key, ss_user, jo
 
 
 if __name__ == "__main__":
-    print("═" * 50)
-    print("  🎽 Spreadshirt AI Design Agent")
+    print("=" * 50)
+    print("  Spreadshirt AI Design Agent")
     print("  Open http://localhost:5000")
-    print("═" * 50)
+    print("=" * 50)
     if not CAIROSVG_AVAILABLE:
-        print("  ⚠️  cairosvg not installed — SVGs won't be converted to PNG")
+        print("  cairosvg not installed -- SVGs won't be converted to PNG")
         print("     Run: pip install cairosvg")
     app.run(debug=True, port=5000, threaded=True)
