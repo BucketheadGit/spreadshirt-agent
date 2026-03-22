@@ -198,11 +198,53 @@
     padding:12px 14px;cursor:pointer;transition:all .2s;white-space:nowrap}
   .btn-skip:hover{border-color:var(--error);color:var(--error)}
 
+  /* AUTOPILOT */
+  .ap-section{margin-bottom:24px}
+  .ap-section h3{font-family:var(--display);font-size:18px;letter-spacing:2px;margin-bottom:14px;color:var(--accent2)}
+  .ap-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px}
+  .ap-stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px}
+  .ap-stat-val{font-family:var(--display);font-size:32px;letter-spacing:1px;color:var(--text)}
+  .ap-stat-lbl{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:3px;color:var(--muted);margin-top:4px}
+  .ap-toggle-row{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 20px;margin-bottom:16px}
+  .ap-toggle-label{font-family:var(--display);font-size:22px;letter-spacing:2px;flex:1}
+  .ap-toggle-label small{font-family:var(--mono);font-size:10px;color:var(--muted);display:block;letter-spacing:2px;text-transform:uppercase}
+  .ap-status-pill{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;padding:4px 12px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+  .ap-status-pill.on{background:rgba(0,230,118,.1);color:var(--success);border-color:rgba(0,230,118,.3)}
+  .ap-config{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+  .ap-config label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);display:block;margin-bottom:5px}
+  .ap-config input,.ap-config select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--mono);font-size:13px;padding:9px 12px;outline:none}
+  .ap-config input:focus,.ap-config select:focus{border-color:var(--accent)}
+  .ap-save-btn{background:var(--accent);color:#fff;border:none;border-radius:4px;font-family:var(--display);font-size:20px;letter-spacing:3px;padding:11px 28px;cursor:pointer;transition:background .15s}
+  .ap-save-btn:hover{background:#ff6520}
+  .ap-niches-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+  .ap-niches-header h3{margin-bottom:0}
+  .ap-suggest-btn{background:rgba(255,208,0,.12);border:1px solid rgba(255,208,0,.3);color:var(--accent2);font-family:var(--mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:4px;cursor:pointer;transition:all .2s}
+  .ap-suggest-btn:hover{background:rgba(255,208,0,.25)}
+  .ap-suggest-btn:disabled{opacity:.4;cursor:not-allowed}
+  .niche-pills{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;min-height:36px}
+  .niche-pill{font-family:var(--mono);font-size:11px;background:rgba(255,77,0,.08);color:var(--accent);border:1px solid rgba(255,77,0,.2);padding:5px 12px;border-radius:20px;cursor:pointer;transition:all .2s}
+  .niche-pill:hover{background:rgba(255,77,0,.2);transform:scale(1.04)}
+  .niche-pill.used{opacity:.35;cursor:default;text-decoration:line-through}
+  .ap-history{background:var(--surface);border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .ap-history-row{display:grid;grid-template-columns:140px 1fr 1fr auto;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;align-items:center}
+  .ap-history-row:last-child{border-bottom:none}
+  .ap-history-row.header{background:rgba(255,255,255,.02);color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:2px}
+  .ap-history-date{color:var(--muted)}
+  .ap-history-niche{color:var(--accent)}
+  .ap-history-title{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ap-history-url a{color:var(--success);text-decoration:none;font-size:9px}
+  .ap-history-url a:hover{text-decoration:underline}
+  .ap-empty{font-family:var(--mono);font-size:11px;color:var(--muted);padding:24px;text-align:center}
+  .ap-next-run{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:8px}
+  .ap-next-run span{color:var(--accent2)}
+
   @media(max-width:720px){
     .modal{grid-template-columns:1fr}
     .modal-img-side{border-right:none;border-bottom:1px solid var(--border);border-radius:12px 12px 0 0;min-height:200px}
     .layout{grid-template-columns:1fr}
     .sidebar{border-right:none;border-bottom:1px solid var(--border)}
+    .ap-grid{grid-template-columns:1fr 1fr}
+    .ap-history-row{grid-template-columns:1fr 1fr}
   }
 </style>
 </head>
@@ -342,6 +384,8 @@
     <div class="tabs">
       <button class="tab active" onclick="showTab('log',this)">Live Log</button>
       <button class="tab" onclick="showTab('results',this)">Results <span class="tab-badge" id="result-count">0</span></button>
+      <button class="tab" onclick="showTab('autopilot',this);loadAutopilot()">⚡ Autopilot</button>
+      <button class="tab" onclick="showTab('history',this);loadHistory()">History</button>
     </div>
     <div class="panel active" id="panel-log">
       <div class="terminal" id="terminal">
@@ -352,6 +396,81 @@
     <div class="panel" id="panel-results">
       <div class="empty-state" id="empty-results"><div class="big">0</div>designs yet.<br>Enter a niche and launch.</div>
       <div class="results-grid" id="results-grid"></div>
+    </div>
+
+    <!-- AUTOPILOT PANEL -->
+    <div class="panel" id="panel-autopilot">
+      <div class="ap-section">
+        <div class="ap-toggle-row">
+          <div class="ap-toggle-label">
+            AUTOPILOT
+            <small>Runs fully unattended on a schedule</small>
+          </div>
+          <span class="ap-status-pill" id="ap-pill">OFF</span>
+          <label class="switch"><input type="checkbox" id="ap-enabled" onchange="toggleAutopilot()"><span class="slider"></span></label>
+        </div>
+        <div id="ap-next-run-info" class="ap-next-run" style="display:none">Next run: <span id="ap-next-ts">—</span></div>
+      </div>
+
+      <div class="ap-section">
+        <h3>CONFIGURATION</h3>
+        <div class="ap-config">
+          <div>
+            <label>Run every (hours)</label>
+            <input type="number" id="ap-interval" value="24" min="1" max="168">
+          </div>
+          <div>
+            <label>Designs per run</label>
+            <input type="number" id="ap-count" value="3" min="1" max="10">
+          </div>
+          <div>
+            <label>Design Mode</label>
+            <select id="ap-mode">
+              <option value="svg">SVG (recommended)</option>
+              <option value="dalle">DALL·E 3</option>
+            </select>
+          </div>
+          <div>
+            <label>Art Style</label>
+            <select id="ap-style">
+              <option value="bold vector art, clean lines, high contrast">Vector Bold</option>
+              <option value="vintage retro illustration, distressed texture">Retro Vintage</option>
+              <option value="minimalist geometric, flat design">Minimalist</option>
+              <option value="hand-drawn cartoon, fun and playful">Cartoon</option>
+              <option value="grunge typography, raw and edgy">Grunge</option>
+            </select>
+          </div>
+        </div>
+        <button class="ap-save-btn" onclick="saveAutopilot()">SAVE SETTINGS</button>
+      </div>
+
+      <div class="ap-section">
+        <div class="ap-niches-header">
+          <h3>NICHE SUGGESTIONS</h3>
+          <button class="ap-suggest-btn" id="suggest-btn" onclick="suggestNiches()">⟳ Suggest Fresh Niches</button>
+        </div>
+        <div class="niche-pills" id="niche-pills">
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Click "Suggest" to get AI-powered niche ideas. Click a pill to use it.</span>
+        </div>
+      </div>
+
+      <div class="ap-section">
+        <div class="ap-grid" id="ap-stats">
+          <div class="ap-stat"><div class="ap-stat-val" id="stat-total">0</div><div class="ap-stat-lbl">Total Uploads</div></div>
+          <div class="ap-stat"><div class="ap-stat-val" id="stat-niches">0</div><div class="ap-stat-lbl">Niches Covered</div></div>
+          <div class="ap-stat"><div class="ap-stat-val" id="stat-runs">0</div><div class="ap-stat-lbl">Auto Runs</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY PANEL -->
+    <div class="panel" id="panel-history">
+      <div class="ap-section">
+        <h3>UPLOAD HISTORY</h3>
+        <div id="history-container">
+          <div class="ap-empty">No uploads yet. Start a run or enable Autopilot.</div>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -533,6 +652,119 @@ async function stopAgent(){
   if(!currentJobId)return;
   const b=document.getElementById('stop-btn');b.disabled=true;b.textContent='⏳ Stopping…';
   await fetch(`/stop/${currentJobId}`,{method:'POST'});
+}
+
+// ── Autopilot ──────────────────────────────────────────────────────────────
+async function loadAutopilot(){
+  try{
+    const [ap, hist]=await Promise.all([fetch('/autopilot').then(r=>r.json()), fetch('/history').then(r=>r.json())]);
+    document.getElementById('ap-enabled').checked=ap.enabled;
+    document.getElementById('ap-interval').value=ap.interval_hours||24;
+    document.getElementById('ap-count').value=ap.designs_per_run||3;
+    _updateApPill(ap.enabled);
+    if(ap.next_run && ap.enabled){
+      document.getElementById('ap-next-run-info').style.display='block';
+      document.getElementById('ap-next-ts').textContent=new Date(ap.next_run+'Z').toLocaleString();
+    }else{
+      document.getElementById('ap-next-run-info').style.display='none';
+    }
+    document.getElementById('stat-total').textContent=hist.uploads?hist.uploads.length:0;
+    document.getElementById('stat-niches').textContent=hist.niches_used?hist.niches_used.length:0;
+    document.getElementById('stat-runs').textContent=ap.runs?ap.runs.length:0;
+  }catch(e){}
+}
+
+function _updateApPill(on){
+  const p=document.getElementById('ap-pill');
+  p.textContent=on?'ON':'OFF';
+  p.className='ap-status-pill'+(on?' on':'');
+}
+
+async function toggleAutopilot(){
+  const on=document.getElementById('ap-enabled').checked;
+  _updateApPill(on);
+  await saveAutopilot();
+}
+
+async function saveAutopilot(){
+  const payload={
+    enabled:document.getElementById('ap-enabled').checked,
+    interval_hours:parseInt(document.getElementById('ap-interval').value)||24,
+    designs_per_run:parseInt(document.getElementById('ap-count').value)||3,
+    design_mode:document.getElementById('ap-mode').value,
+    style:document.getElementById('ap-style').value,
+    anthropic_key:document.getElementById('ant-key').value.trim(),
+    openai_key:document.getElementById('oai-key').value.trim(),
+    spreadshirt_key:document.getElementById('ss-key').value.trim(),
+    spreadshirt_user:document.getElementById('ss-user').value.trim(),
+  };
+  try{
+    const r=await fetch('/autopilot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    if(d.ok){
+      _updateApPill(d.enabled);
+      if(d.next_run && d.enabled){
+        document.getElementById('ap-next-run-info').style.display='block';
+        document.getElementById('ap-next-ts').textContent=new Date(d.next_run+'Z').toLocaleString();
+      }else{
+        document.getElementById('ap-next-run-info').style.display='none';
+      }
+      alert(d.enabled?'Autopilot ON — will run every '+payload.interval_hours+'h':'Autopilot disabled.');
+    }
+  }catch(e){alert('Error saving: '+e.message)}
+}
+
+async function suggestNiches(){
+  const btn=document.getElementById('suggest-btn');
+  const antKey=document.getElementById('ant-key').value.trim();
+  if(!antKey){alert('Enter your Anthropic API key first.');return}
+  btn.disabled=true; btn.textContent='⟳ Thinking…';
+  try{
+    const r=await fetch('/suggest_niches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({anthropic_key:antKey})});
+    const d=await r.json();
+    if(!d.ok){alert('Error: '+d.error);return}
+    const hist=await fetch('/history').then(r=>r.json());
+    const used=new Set(hist.niches_used||[]);
+    const pills=document.getElementById('niche-pills');
+    pills.innerHTML=d.niches.map(n=>{
+      const u=used.has(n);
+      return `<span class="niche-pill${u?' used':''}" title="${u?'Already used':''}" onclick="${u?'':'"niche-selector(\''+n+'\')"'}">${n}</span>`;
+    }).join('');
+    // Fix: use event delegation instead of inline
+    pills.querySelectorAll('.niche-pill:not(.used)').forEach(el=>{
+      el.onclick=()=>{
+        document.getElementById('niche').value=el.textContent;
+        showTab('log',document.querySelector('.tab'));
+        document.querySelector('.tab').click();
+      };
+    });
+  }catch(e){alert('Error: '+e.message)}
+  finally{btn.disabled=false;btn.textContent='⟳ Suggest Fresh Niches'}
+}
+
+// ── History ─────────────────────────────────────────────────────────────────
+async function loadHistory(){
+  try{
+    const hist=await fetch('/history').then(r=>r.json());
+    const uploads=hist.uploads||[];
+    const cont=document.getElementById('history-container');
+    if(!uploads.length){cont.innerHTML='<div class="ap-empty">No uploads yet.</div>';return}
+    const rows=uploads.slice().reverse().map(u=>{
+      const d=new Date(u.timestamp+'Z');
+      const ds=`${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+      const link=u.product_url?`<a href="${u.product_url}" target="_blank">View ↗</a>`:'<span style="color:var(--muted)">dry run</span>';
+      return `<div class="ap-history-row">
+        <div class="ap-history-date">${esc(ds)}</div>
+        <div class="ap-history-niche">${esc(u.niche)}</div>
+        <div class="ap-history-title">${esc(u.title||u.slogan)}</div>
+        <div class="ap-history-url">${link}</div>
+      </div>`;
+    }).join('');
+    cont.innerHTML=`<div class="ap-history">
+      <div class="ap-history-row header"><div>Date</div><div>Niche</div><div>Design</div><div>Link</div></div>
+      ${rows}
+    </div>`;
+  }catch(e){}
 }
 </script>
 </body>

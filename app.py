@@ -3,7 +3,7 @@ Spreadshirt AI Design Agent — Backend
 Run with: python app.py  |  Open http://localhost:5000
 """
 
-import io, json, base64, time, threading, uuid, re, os
+import io, json, base64, time, threading, uuid, re, os, datetime
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import anthropic
@@ -38,7 +38,51 @@ CORS(app)
 jobs = {}
 SPREADSHIRT_BASE = "https://api.spreadshirt.net/api/v1"
 OUTPUTS_DIR = os.path.join(os.path.dirname(__file__), "outputs")
+HISTORY_FILE = os.path.join(os.path.dirname(__file__), "upload_history.json")
 os.makedirs(OUTPUTS_DIR, exist_ok=True)
+
+# ─── Autopilot state ──────────────────────────────────────────────────────────
+autopilot_state = {
+    "enabled": False,
+    "interval_hours": 24,
+    "designs_per_run": 3,
+    "last_run": None,
+    "next_run": None,
+    "runs": [],          # list of {timestamp, niche, job_id, uploads}
+    "thread": None,
+}
+_autopilot_lock = threading.Lock()
+
+
+# ─── Upload history helpers ───────────────────────────────────────────────────
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        try:
+            with open(HISTORY_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"uploads": [], "niches_used": []}
+
+
+def save_history(history):
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f, indent=2)
+
+
+def record_upload(niche, slogan, title, product_url=None):
+    history = load_history()
+    history["uploads"].append({
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "niche": niche,
+        "slogan": slogan,
+        "title": title,
+        "product_url": product_url,
+    })
+    if niche not in history["niches_used"]:
+        history["niches_used"].append(niche)
+    save_history(history)
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
@@ -108,6 +152,63 @@ def review_decision(job_id):
     job["review_pending"]["decision"] = request.json
     job["review_pending"]["event"].set()
     return jsonify({"ok": True})
+
+
+@app.route("/history")
+def get_history():
+    return jsonify(load_history())
+
+
+@app.route("/suggest_niches", methods=["POST"])
+def suggest_niches():
+    """Ask Claude to suggest trending, profitable niches, avoiding already-used ones."""
+    data = request.json or {}
+    ant_key = data.get("anthropic_key") or os.environ.get("ANTHROPIC_KEY", "")
+    if not ant_key:
+        return jsonify({"ok": False, "error": "No Anthropic key"}), 400
+    history = load_history()
+    used = history.get("niches_used", [])
+    try:
+        ant = anthropic.Anthropic(api_key=ant_key)
+        niches = discover_niches(ant, used, count=10)
+        return jsonify({"ok": True, "niches": niches})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/autopilot", methods=["GET"])
+def autopilot_status():
+    with _autopilot_lock:
+        return jsonify({
+            "enabled": autopilot_state["enabled"],
+            "interval_hours": autopilot_state["interval_hours"],
+            "designs_per_run": autopilot_state["designs_per_run"],
+            "last_run": autopilot_state["last_run"],
+            "next_run": autopilot_state["next_run"],
+            "runs": autopilot_state["runs"][-20:],  # last 20
+        })
+
+
+@app.route("/autopilot", methods=["POST"])
+def autopilot_configure():
+    data = request.json or {}
+    with _autopilot_lock:
+        if "enabled" in data:
+            autopilot_state["enabled"] = bool(data["enabled"])
+        if "interval_hours" in data:
+            autopilot_state["interval_hours"] = max(1, int(data["interval_hours"]))
+        if "designs_per_run" in data:
+            autopilot_state["designs_per_run"] = max(1, min(20, int(data["designs_per_run"])))
+        # Store credentials for unattended runs
+        for k in ("anthropic_key", "openai_key", "spreadshirt_key", "spreadshirt_user",
+                  "design_mode", "style"):
+            if k in data:
+                autopilot_state[k] = data[k]
+        if autopilot_state["enabled"]:
+            _schedule_next_run()
+    return jsonify({"ok": True, **{k: autopilot_state[k]
+                                    for k in ("enabled", "interval_hours", "designs_per_run",
+                                              "last_run", "next_run")}})
 
 
 @app.route("/stream/<job_id>")
@@ -263,6 +364,7 @@ def run_agent(job_id, data):
                     result["uploaded"] = True
                     result["product_url"] = url
                     emit(job_id, "log", "  ✅ Uploaded!")
+                    record_upload(niche, concept["slogan"], metadata["title"], url)
                 except Exception as e:
                     result["upload_error"] = str(e)
                     emit(job_id, "error", f"  ❌ Upload failed: {e}")
@@ -450,6 +552,130 @@ Return ONLY valid JSON:
         text = text.split("```")[1]
         if text.startswith("json"): text = text[4:]
     return json.loads(text.strip())
+
+
+# ─── Niche Discovery ─────────────────────────────────────────────────────────
+
+def discover_niches(ant, already_used=None, count=10):
+    """Ask Claude to suggest fresh, profitable print-on-demand niches."""
+    used_note = ""
+    if already_used:
+        used_note = f"\nALREADY USED — do NOT suggest these: {', '.join(already_used[:30])}"
+
+    prompt = f"""You are a print-on-demand market researcher. Suggest {count} HIGH-POTENTIAL t-shirt niches.
+
+Focus on niches that:
+- Have passionate, spending audiences (hobbies, professions, fandoms, lifestyles)
+- Are specific enough to have strong identity ("coffee snobs" > "coffee lovers")
+- Currently trending or evergreen (pets, fitness, gaming, trades, humor, parenting)
+- Work well for slogans + simple graphic designs
+{used_note}
+
+Return ONLY a JSON array of strings, no markdown:
+["niche 1", "niche 2", ...]"""
+
+    resp = ant.messages.create(
+        model="claude-opus-4-6", max_tokens=800,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    text = resp.content[0].text.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"): text = text[4:]
+    return json.loads(text.strip())
+
+
+# ─── Autopilot Engine ─────────────────────────────────────────────────────────
+
+def _schedule_next_run():
+    """Set next_run timestamp based on interval. Call with _autopilot_lock held."""
+    hours = autopilot_state["interval_hours"]
+    next_dt = datetime.datetime.utcnow() + datetime.timedelta(hours=hours)
+    autopilot_state["next_run"] = next_dt.isoformat()
+
+
+def _autopilot_runner():
+    """Background thread: wakes up, checks if it's time to run, executes a job."""
+    while True:
+        time.sleep(60)  # check every minute
+        with _autopilot_lock:
+            if not autopilot_state["enabled"]:
+                continue
+            next_run = autopilot_state.get("next_run")
+            if not next_run:
+                _schedule_next_run()
+                continue
+            if datetime.datetime.utcnow().isoformat() < next_run:
+                continue
+            # It's time — kick off a run
+            autopilot_state["last_run"] = datetime.datetime.utcnow().isoformat()
+            _schedule_next_run()
+            ant_key = autopilot_state.get("anthropic_key") or os.environ.get("ANTHROPIC_KEY", "")
+            if not ant_key:
+                continue
+            count = autopilot_state["designs_per_run"]
+            creds = {k: autopilot_state.get(k, "") for k in
+                     ("anthropic_key", "openai_key", "spreadshirt_key", "spreadshirt_user",
+                      "design_mode", "style")}
+
+        # Discover a fresh niche (outside lock to avoid holding it during API call)
+        try:
+            ant = anthropic.Anthropic(api_key=ant_key)
+            history = load_history()
+            suggestions = discover_niches(ant, history.get("niches_used", []), count=5)
+            niche = suggestions[0] if suggestions else "dog lovers"
+        except Exception:
+            niche = "cat lovers"
+
+        job_id = str(uuid.uuid4())[:8]
+        jobs[job_id] = {
+            "status": "running", "events": [], "results": [],
+            "cancelled": False, "review_pending": None
+        }
+        job_data = {
+            "niche": niche,
+            "count": count,
+            "anthropic_key": creds.get("anthropic_key") or os.environ.get("ANTHROPIC_KEY", ""),
+            "openai_key": creds.get("openai_key") or os.environ.get("OPENAI_KEY", ""),
+            "spreadshirt_key": creds.get("spreadshirt_key") or os.environ.get("SPREADSHIRT_KEY", ""),
+            "spreadshirt_user": creds.get("spreadshirt_user") or os.environ.get("SPREADSHIRT_USER", ""),
+            "design_mode": creds.get("design_mode") or "svg",
+            "style": creds.get("style") or "bold vector art, clean lines, high contrast",
+            "review": False,  # Always unattended
+        }
+        threading.Thread(target=_autopilot_job, args=(job_id, job_data, niche), daemon=True).start()
+
+        with _autopilot_lock:
+            autopilot_state["runs"].append({
+                "timestamp": autopilot_state["last_run"],
+                "niche": niche,
+                "job_id": job_id,
+            })
+
+
+def _autopilot_job(job_id, data, niche):
+    """Run agent then record results into history."""
+    run_agent(job_id, data)
+    job = jobs.get(job_id, {})
+    for result in job.get("results", []):
+        record_upload(
+            niche=niche,
+            slogan=result.get("slogan", ""),
+            title=result.get("title", ""),
+            product_url=result.get("product_url"),
+        )
+    # Update run entry with upload count
+    with _autopilot_lock:
+        for run in autopilot_state["runs"]:
+            if run["job_id"] == job_id:
+                run["uploads"] = len(job.get("results", []))
+                run["status"] = job.get("status", "done")
+                break
+
+
+# Start the autopilot background thread immediately
+_ap_thread = threading.Thread(target=_autopilot_runner, daemon=True)
+_ap_thread.start()
 
 
 # ─── Spreadshirt Upload ───────────────────────────────────────────────────────
